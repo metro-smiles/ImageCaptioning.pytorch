@@ -5,7 +5,7 @@ from __future__ import print_function
 import collections
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
+#from torch.autograd import Variable
 
 def if_use_att(caption_model):
     # Decide if load attention feature according to caption model
@@ -24,7 +24,8 @@ def decode_sequence(ix_to_word, seq):
             if ix > 0 :
                 if j >= 1:
                     txt = txt + ' '
-                txt = txt + ix_to_word[str(ix)]
+                #txt = txt + ix_to_word[str(ix)]
+                txt = txt + ix_to_word[str(ix.item())]
             else:
                 break
         out.append(txt)
