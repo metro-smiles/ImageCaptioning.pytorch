@@ -23,7 +23,7 @@ from misc.resnet_utils import myResnet
 import misc.resnet
 
 class DataLoaderRaw():
-    
+
     def __init__(self, opt):
         self.opt = opt
         self.coco_json = opt.get('coco_json', '')
@@ -109,8 +109,9 @@ class DataLoaderRaw():
 
             img = img.astype('float32')/255.0
             img = torch.from_numpy(img.transpose([2,0,1])).cuda()
-            img = Variable(preprocess(img), volatile=True)
-            tmp_fc, tmp_att = self.my_resnet(img)
+            img = preprocess(img)
+            with torch.no_grad():
+                tmp_fc, tmp_att = self.my_resnet(img)
 
             fc_batch[i] = tmp_fc.data.cpu().float().numpy()
             att_batch[i] = tmp_att.data.cpu().float().numpy()
@@ -136,4 +137,3 @@ class DataLoaderRaw():
 
     def get_vocab(self):
         return self.ix_to_word
-        
