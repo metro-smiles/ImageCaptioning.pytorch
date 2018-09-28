@@ -71,12 +71,16 @@ class FCModel(CaptionModel):
         self.logit.weight.data.uniform_(-initrange, initrange)
 
     def init_hidden(self, bsz):
-        weight = next(self.parameters()).data
+        # weight = next(self.parameters()).data
+        weight = next(self.parameters())
         if self.rnn_type == 'lstm':
-            return (Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()),
-                    Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()))
+            return (weight.new_zeros(self.num_layers, bsz, self.rnn_size),
+                    weight.new_zeros(self.num_layers, bsz, self.rnn_size))
+            # return (Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()),
+            #        Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()))
         else:
-            return Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_())
+            # return Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_())
+            return weight.new_zeros(self.num_layers, bsz, self.rnn_size)
 
     def forward(self, fc_feats, att_feats, seq):
         batch_size = fc_feats.size(0)
@@ -99,26 +103,30 @@ class FCModel(CaptionModel):
                         #it.index_copy_(0, sample_ind, torch.multinomial(prob_prev, 1).view(-1))
                         prob_prev = torch.exp(outputs[-1].data) # fetch prev distribution: shape Nx(M+1)
                         it.index_copy_(0, sample_ind, torch.multinomial(prob_prev, 1).view(-1).index_select(0, sample_ind))
-                        it = Variable(it, requires_grad=False)
+                        # it = Variable(it, requires_grad=False)
                 else:
                     it = seq[:, i-1].clone()
                 # break if all the sequences end
-                if i >= 2 and seq[:, i-1].data.sum() == 0:
+                # if i >= 2 and seq[:, i-1].data.sum() == 0:
+                if i >= 2 and seq[:, i-1].sum() == 0:
                     break
                 xt = self.embed(it)
 
             output, state = self.core(xt, state)
-            output = F.log_softmax(self.logit(output))
+            # output = F.log_softmax(self.logit(output))
+            output = F.log_softmax(self.logit(output), dim=1)
             outputs.append(output)
 
         return torch.cat([_.unsqueeze(1) for _ in outputs[1:]], 1).contiguous()
 
     def get_logprobs_state(self, it, state):
         # 'it' is Variable contraining a word index
+        # 'it' is contains a word index
         xt = self.embed(it)
 
         output, state = self.core(xt, state)
-        logprobs = F.log_softmax(self.logit(output))
+        # logprobs = F.log_softmax(self.logit(output))
+        logprobs = F.log_softmax(self.logit(output), dim=1)
 
         return logprobs, state
 
@@ -139,10 +147,12 @@ class FCModel(CaptionModel):
                     xt = self.img_embed(fc_feats[k:k+1]).expand(beam_size, self.input_encoding_size)
                 elif t == 1: # input <bos>
                     it = fc_feats.data.new(beam_size).long().zero_()
-                    xt = self.embed(Variable(it, requires_grad=False))
+                    # xt = self.embed(Variable(it, requires_grad=False))
+                    xt = self.embed(it)
 
                 output, state = self.core(xt, state)
-                logprobs = F.log_softmax(self.logit(output))
+                # logprobs = F.log_softmax(self.logit(output))
+                logprobs = F.log_softmax(self.logit(output), dim=1)
 
             self.done_beams[k] = self.beam_search(state, logprobs, opt=opt)
             seq[:, k] = self.done_beams[k][0]['seq'] # the first beam has highest cumulative score
@@ -177,10 +187,12 @@ class FCModel(CaptionModel):
                         # scale logprobs by temperature
                         prob_prev = torch.exp(torch.div(logprobs.data, temperature)).cpu()
                     it = torch.multinomial(prob_prev, 1).cuda()
-                    sampleLogprobs = logprobs.gather(1, Variable(it, requires_grad=False)) # gather the logprobs at sampled positions
+                    # sampleLogprobs = logprobs.gather(1, Variable(it, requires_grad=False)) # gather the logprobs at sampled positions
+                    sampleLogprobs = logprobs.gather(1, it) # gather the logprobs at sampled positions
                     it = it.view(-1).long() # and flatten indices for downstream processing
 
-                xt = self.embed(Variable(it, requires_grad=False))
+                # xt = self.embed(Variable(it, requires_grad=False))
+                xt = self.embed(it)
 
             if t >= 2:
                 # stop when all finished
@@ -195,7 +207,8 @@ class FCModel(CaptionModel):
                 seqLogprobs.append(sampleLogprobs.view(-1))
 
             output, state = self.core(xt, state)
-            logprobs = F.log_softmax(self.logit(output))
+            # logprobs = F.log_softmax(self.logit(output))
+            logprobs = F.log_softmax(self.logit(output), dim=1)
 
         return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1)
 
