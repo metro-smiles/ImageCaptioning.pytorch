@@ -7,7 +7,7 @@ This is an image captioning codebase in PyTorch. If you are familiar with neural
 - Much more models (you can check out models folder). The latest topdown model can achieve 1.07 Cider score on Karpathy's test split with beam size 5.
 
 ## Requirements
-Python 2.7 (because there is no [coco-caption](https://github.com/tylin/coco-caption) version for python 3)
+Python 2.7 (because there is no [coco-caption](https://github.com/tylin/coco-caption) version for python 3).
 Supports Python 3.5 for inference atleast, if no COCO-evaluation is intended to be performed.
 PyTorch 0.4.1 (along with torchvision)
 
