@@ -66,31 +66,35 @@ class OldModel(CaptionModel):
                     it = seq[:, i].clone()
                 else:
                     sample_ind = sample_mask.nonzero().view(-1)
-                    it = seq[:, i].data.clone()
+                    # it = seq[:, i].data.clone()
+                    it = seq[:, i].clone()
                     #prob_prev = torch.exp(outputs[-1].data.index_select(0, sample_ind)) # fetch prev distribution: shape Nx(M+1)
                     #it.index_copy_(0, sample_ind, torch.multinomial(prob_prev, 1).view(-1))
                     prob_prev = torch.exp(outputs[-1].data) # fetch prev distribution: shape Nx(M+1)
                     it.index_copy_(0, sample_ind, torch.multinomial(prob_prev, 1).view(-1).index_select(0, sample_ind))
-                    it = Variable(it, requires_grad=False)
+                    #it = Variable(it, requires_grad=False)
             else:
-                it = seq[:, i].clone()
+                it = seq[:, i].clone()          
             # break if all the sequences end
+            # if i >= 1 and seq[:, i].data.sum() == 0:
             if i >= 1 and seq[:, i].sum() == 0:
                 break
 
             xt = self.embed(it)
 
             output, state = self.core(xt, fc_feats, att_feats, state)
+            # output = F.log_softmax(self.logit(self.dropout(output)))
             output = F.log_softmax(self.logit(self.dropout(output)), dim=1)
             outputs.append(output)
 
         return torch.cat([_.unsqueeze(1) for _ in outputs], 1)
 
     def get_logprobs_state(self, it, tmp_fc_feats, tmp_att_feats, state):
-        # 'it' contains a word index
+        # 'it' is Variable contraining a word index
         xt = self.embed(it)
 
         output, state = self.core(xt, tmp_fc_feats, tmp_att_feats, state)
+        # logprobs = F.log_softmax(self.logit(self.dropout(output)))
         logprobs = F.log_softmax(self.logit(self.dropout(output)), dim=1)
 
         return logprobs, state
@@ -108,7 +112,7 @@ class OldModel(CaptionModel):
         for k in range(batch_size):
             tmp_fc_feats = fc_feats[k:k+1].expand(beam_size, self.fc_feat_size)
             tmp_att_feats = att_feats[k:k+1].expand(*((beam_size,)+att_feats.size()[1:])).contiguous()
-
+            
             state = self.init_hidden(tmp_fc_feats)
 
             beam_seq = torch.LongTensor(self.seq_length, beam_size).zero_()
@@ -118,9 +122,11 @@ class OldModel(CaptionModel):
             for t in range(1):
                 if t == 0: # input <bos>
                     it = fc_feats.data.new(beam_size).long().zero_()
+                    # xt = self.embed(Variable(it, requires_grad=False))
                     xt = self.embed(it)
 
                 output, state = self.core(xt, tmp_fc_feats, tmp_att_feats, state)
+                # logprobs = F.log_softmax(self.logit(self.dropout(output)))
                 logprobs = F.log_softmax(self.logit(self.dropout(output)), dim=1)
 
             self.done_beams[k] = self.beam_search(state, logprobs, tmp_fc_feats, tmp_att_feats, opt=opt)
@@ -154,9 +160,11 @@ class OldModel(CaptionModel):
                     # scale logprobs by temperature
                     prob_prev = torch.exp(torch.div(logprobs.data, temperature)).cpu()
                 it = torch.multinomial(prob_prev, 1).cuda()
+                # sampleLogprobs = logprobs.gather(1, Variable(it, requires_grad=False)) # gather the logprobs at sampled positions
                 sampleLogprobs = logprobs.gather(1, it) # gather the logprobs at sampled positions
                 it = it.view(-1).long() # and flatten indices for downstream processing
 
+            # xt = self.embed(Variable(it, requires_grad=False))
             xt = self.embed(it)
 
             if t >= 1:
@@ -172,6 +180,7 @@ class OldModel(CaptionModel):
                 seqLogprobs.append(sampleLogprobs.view(-1))
 
             output, state = self.core(xt, fc_feats, att_feats, state)
+            # logprobs = F.log_softmax(self.logit(self.dropout(output)))
             logprobs = F.log_softmax(self.logit(self.dropout(output)), dim=1)
 
         return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1)
@@ -188,8 +197,8 @@ class ShowAttendTellCore(nn.Module):
         self.fc_feat_size = opt.fc_feat_size
         self.att_feat_size = opt.att_feat_size
         self.att_hid_size = opt.att_hid_size
-
-        self.rnn = getattr(nn, self.rnn_type.upper())(self.input_encoding_size + self.att_feat_size,
+        
+        self.rnn = getattr(nn, self.rnn_type.upper())(self.input_encoding_size + self.att_feat_size, 
                 self.rnn_size, self.num_layers, bias=False, dropout=self.drop_prob_lm)
 
         if self.att_hid_size > 0:
@@ -219,8 +228,8 @@ class ShowAttendTellCore(nn.Module):
             att_h = self.h2att(state[0][-1])                    # batch * 1
             att_h = att_h.expand_as(att)                        # batch * att_size
             dot = att_h + att                                   # batch * att_size
-
-        weight = F.softmax(dot, dim=1)
+        
+        weight = F.softmax(dot)
         att_feats_ = att_feats.view(-1, att_size, self.att_feat_size) # batch * att_size * att_feat_size
         att_res = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) # batch * att_feat_size
 
@@ -236,8 +245,8 @@ class AllImgCore(nn.Module):
         self.num_layers = opt.num_layers
         self.drop_prob_lm = opt.drop_prob_lm
         self.fc_feat_size = opt.fc_feat_size
-
-        self.rnn = getattr(nn, self.rnn_type.upper())(self.input_encoding_size + self.fc_feat_size,
+        
+        self.rnn = getattr(nn, self.rnn_type.upper())(self.input_encoding_size + self.fc_feat_size, 
                 self.rnn_size, self.num_layers, bias=False, dropout=self.drop_prob_lm)
 
     def forward(self, xt, fc_feats, att_feats, state):
@@ -253,3 +262,4 @@ class AllImgModel(OldModel):
     def __init__(self, opt):
         super(AllImgModel, self).__init__(opt)
         self.core = AllImgCore(opt)
+

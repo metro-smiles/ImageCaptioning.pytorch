@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import torch
 import torch.nn as nn
-# from torch.autograd import Variable
+from torch.autograd import Variable
 import torch.optim as optim
 
 import numpy as np
@@ -106,8 +106,7 @@ def train(opt):
         start = time.time()
 
         tmp = [data['fc_feats'], data['att_feats'], data['labels'], data['masks']]
-        # tmp = [Variable(torch.from_numpy(_), requires_grad=False).cuda() for _ in tmp]
-        tmp = [torch.from_numpy(_).cuda() for _ in tmp]
+        tmp = [Variable(torch.from_numpy(_), requires_grad=False).cuda() for _ in tmp]
         fc_feats, att_feats, labels, masks = tmp
         
         optimizer.zero_grad()
@@ -115,7 +114,6 @@ def train(opt):
         loss.backward()
         utils.clip_gradient(optimizer, opt.grad_clip)
         optimizer.step()
-        # train_loss = loss.data[0]
         train_loss = loss.item()
         torch.cuda.synchronize()
         end = time.time()

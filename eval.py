@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import json
 import numpy as np
-
+import pickle
 import time
 import os
 from six.moves import cPickle
@@ -38,13 +38,13 @@ parser.add_argument('--dump_images', type=int, default=1,
                 help='Dump images into vis/imgs folder for vis? (1=yes,0=no)')
 parser.add_argument('--dump_json', type=int, default=1,
                 help='Dump json with predictions into vis folder? (1=yes,0=no)')
-parser.add_argument('--dump_path', type=int, default=0,
+parser.add_argument('--dump_path', type=int, default=1,
                 help='Write image paths along with predictions into vis json? (1=yes,0=no)')
 
 # Sampling options
 parser.add_argument('--sample_max', type=int, default=1,
                 help='1 = sample argmax words. 0 = sample from distributions.')
-parser.add_argument('--beam_size', type=int, default=2,
+parser.add_argument('--beam_size', type=int, default=1,
                 help='used when sample_max = 1, indicates number of beams in beam search. Usually 2 or 3 works well. More is not better. Set this to 1 for faster runtime but a bit worse performance.')
 parser.add_argument('--temperature', type=float, default=1.0,
                 help='temperature when sampling from distributions (i.e. when sample_max = 0). Lower = "safer" predictions.')
@@ -73,8 +73,8 @@ parser.add_argument('--id', type=str, default='',
 opt = parser.parse_args()
 
 # Load infos
-with open(opt.infos_path) as f:
-    infos = cPickle.load(f)
+with open(opt.infos_path, 'rb') as f:
+    infos = pickle.load(f, encoding='latin1') # cPickle.load(f)
 
 # override and collect parameters
 if len(opt.input_fc_dir) == 0:

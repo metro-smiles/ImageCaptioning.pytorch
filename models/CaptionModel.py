@@ -46,11 +46,12 @@ class CaptionModel(nn.Module):
             for c in range(cols): # for each column (word, essentially)
                 for q in range(rows): # for each beam expansion
                     #compute logprob of expanding beam q with word in (sorted) position c
+                    # local_logprob = ys[q,c]
                     local_logprob = ys[q,c].item()
                     candidate_logprob = beam_logprobs_sum[q] + local_logprob
                     candidates.append({'c':ix[q,c], 'q':q, 'p':candidate_logprob, 'r':local_logprob})
             candidates = sorted(candidates,  key=lambda x: -x['p'])
-
+            
             new_state = [_.clone() for _ in state]
             #beam_seq_prev, beam_seq_logprobs_prev
             if t >= 1:
@@ -90,8 +91,8 @@ class CaptionModel(nn.Module):
             the top beam_size most likely sequences."""
             logprobsf = logprobs.data.float() # lets go to CPU for more efficiency in indexing operations
             # suppress UNK tokens in the decoding
-            logprobsf[:,logprobsf.size(1)-1] =  logprobsf[:, logprobsf.size(1)-1] - 1000
-
+            logprobsf[:,logprobsf.size(1)-1] =  logprobsf[:, logprobsf.size(1)-1] - 1000  
+        
             beam_seq,\
             beam_seq_logprobs,\
             beam_logprobs_sum,\
@@ -108,9 +109,9 @@ class CaptionModel(nn.Module):
                 # if time's up... or if end token is reached then copy beams
                 if beam_seq[t, vix] == 0 or t == self.seq_length - 1:
                     final_beam = {
-                        'seq': beam_seq[:, vix].clone(),
+                        'seq': beam_seq[:, vix].clone(), 
                         'logps': beam_seq_logprobs[:, vix].clone(),
-                        'p': beam_logprobs_sum[vix].item()
+                        'p': beam_logprobs_sum[vix]
                     }
                     done_beams.append(final_beam)
                     # don't continue beams from finished sequences

@@ -5,7 +5,7 @@ from __future__ import print_function
 import collections
 import torch
 import torch.nn as nn
-#from torch.autograd import Variable
+from torch.autograd import Variable
 
 def if_use_att(caption_model):
     # Decide if load attention feature according to caption model
@@ -15,7 +15,7 @@ def if_use_att(caption_model):
 
 # Input: seq, N*D numpy array, with element 0 .. vocab_size. 0 is END token.
 def decode_sequence(ix_to_word, seq):
-    N, D = seq.size()
+    N, D = seq.shape
     out = []
     for i in range(N):
         txt = ''
@@ -24,8 +24,7 @@ def decode_sequence(ix_to_word, seq):
             if ix > 0 :
                 if j >= 1:
                     txt = txt + ' '
-                #txt = txt + ix_to_word[str(ix)]
-                txt = txt + ix_to_word[str(ix.item())]
+                txt = txt + ix_to_word[str(ix)]
             else:
                 break
         out.append(txt)
@@ -43,9 +42,9 @@ class LanguageModelCriterion(nn.Module):
 
     def forward(self, input, target, mask):
         # truncate to the same size
-        target = target[:, :input.size(1)]
-        mask =  mask[:, :input.size(1)]
-        input = to_contiguous(input).view(-1, input.size(2))
+        target = target[:, :input.shape[1]]
+        mask =  mask[:, :input.shape[1]]
+        input = to_contiguous(input).view(-1, input.shape[2])
         target = to_contiguous(target).view(-1, 1)
         mask = to_contiguous(mask).view(-1, 1)
         output = - input.gather(1, target) * mask

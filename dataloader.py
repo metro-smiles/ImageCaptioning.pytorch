@@ -203,17 +203,10 @@ class DataLoader(data.Dataset):
     def __len__(self):
         return len(self.info['images'])
 
-class SubsetSampler(torch.utils.data.sampler.Sampler):
-    """Samples elements randomly from a given list of indices, without replacement.
-    Arguments:
-        indices (list): a list of indices
-    """
-    def __init__(self, indices):
-        self.indices = indices
+
+class ArraySampler(data.sampler.SubsetRandomSampler):
     def __iter__(self):
-        return (self.indices[i] for i in range(len(self.indices)))
-    def __len__(self):
-        return len(self.indices)
+        return iter(self.indices)
 
 
 class BlobFetcher():
@@ -237,8 +230,8 @@ class BlobFetcher():
          the get_minibatch_inds already.
         """
         # batch_size is 0, the merge is done in DataLoader class
-        #sampler = self.dataloader.split_ix[self.split][self.dataloader.iterators[self.split]:]
-        sampler = SubsetSampler(self.dataloader.split_ix[self.split][self.dataloader.iterators[self.split]:])
+        sampler = ArraySampler(
+            self.dataloader.split_ix[self.split][self.dataloader.iterators[self.split]:])
         self.split_loader = iter(
             data.DataLoader(dataset=self.dataloader,
                             batch_size=1,

@@ -53,19 +53,18 @@ class AttModel(CaptionModel):
         self.ctx2att = nn.Linear(self.rnn_size, self.att_hid_size)
 
     def init_hidden(self, bsz):
-        # weight = next(self.parameters()).data
         weight = next(self.parameters())
-        # return (Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()),
-        #        Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()))
         return (weight.new_zeros(self.num_layers, bsz, self.rnn_size),
                 weight.new_zeros(self.num_layers, bsz, self.rnn_size))
+        #weight = next(self.parameters()).data
+        #return (Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()),
+        #        Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()))
 
     def forward(self, fc_feats, att_feats, seq):
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size)
 
         outputs = []
-        #outputs = fc_feats.new_zeros(batch_size, seq.size(1) - 1, self.vocab_size+1)
 
         # embed fc and att feats
         fc_feats = self.fc_embed(fc_feats)
@@ -78,43 +77,44 @@ class AttModel(CaptionModel):
 
         for i in range(seq.size(1) - 1):
             if self.training and i >= 1 and self.ss_prob > 0.0: # otherwiste no need to sample
-                #sample_prob = fc_feats.data.new(batch_size).uniform_(0, 1)
+                # sample_prob = fc_feats.data.new(batch_size).uniform_(0, 1)
                 sample_prob = fc_feats.new(batch_size).uniform_(0, 1)
                 sample_mask = sample_prob < self.ss_prob
                 if sample_mask.sum() == 0:
                     it = seq[:, i].clone()
                 else:
                     sample_ind = sample_mask.nonzero().view(-1)
-                    it = seq[:, i].data.clone()
+                    # it = seq[:, i].data.clone()
+                    it = seq[:, i].clone()
                     #prob_prev = torch.exp(outputs[-1].data.index_select(0, sample_ind)) # fetch prev distribution: shape Nx(M+1)
                     #it.index_copy_(0, sample_ind, torch.multinomial(prob_prev, 1).view(-1))
-                    #prob_prev = torch.exp(outputs[-1].data) # fetch prev distribution: shape Nx(M+1)
-                    prob_prev = torch.exp(outputs[-1].detach()) # fetch prev distribution: shape Nx(M+1)
+                    # prob_prev = torch.exp(outputs[-1].data) # fetch prev distribution: shape Nx(M+1)
+                    prob_prev = torch.exp(outputs[:, i-1].detach())
                     it.index_copy_(0, sample_ind, torch.multinomial(prob_prev, 1).view(-1).index_select(0, sample_ind))
                     #it = Variable(it, requires_grad=False)
             else:
                 it = seq[:, i].clone()          
             # break if all the sequences end
-            #if i >= 1 and seq[:, i].data.sum() == 0:
+            # if i >= 1 and seq[:, i].data.sum() == 0:
             if i >= 1 and seq[:, i].sum() == 0:
                 break
 
             xt = self.embed(it)
 
             output, state = self.core(xt, fc_feats, att_feats, p_att_feats, state)
-            output = F.log_softmax(self.logit(output))
+            # output = F.log_softmax(self.logit(output))
+            output = F.log_softmax(self.logit(output), dim=1)
             outputs.append(output)
 
         return torch.cat([_.unsqueeze(1) for _ in outputs], 1)
 
     def get_logprobs_state(self, it, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, state):
         # 'it' is Variable contraining a word index
-        # 'it' contains a word index
         xt = self.embed(it)
 
         output, state = self.core(xt, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, state)
-        #logprobs = F.log_softmax(self.logit(output))
         logprobs = F.log_softmax(self.logit(output), dim=1)
+        # logprobs = F.log_softmax(self.logit(output))
 
         return logprobs, state
 
@@ -145,13 +145,14 @@ class AttModel(CaptionModel):
 
             for t in range(1):
                 if t == 0: # input <bos>
-                    #it = fc_feats.data.new(beam_size).long().zero_()
+                    # it = fc_feats.data.new(beam_size).long().zero_()
                     it = fc_feats.new_zeros([beam_size], dtype=torch.long)
-                    #xt = self.embed(Variable(it, requires_grad=False))
+                    # xt = self.embed(Variable(it, requires_grad=False))
                     xt = self.embed(it)
 
                 output, state = self.core(xt, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, state)
-                logprobs = F.log_softmax(self.logit(output))
+                # logprobs = F.log_softmax(self.logit(output))
+                logprobs = F.log_softmax(self.logit(output), dim=1)
 
             self.done_beams[k] = self.beam_search(state, logprobs, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, opt=opt)
             seq[:, k] = self.done_beams[k][0]['seq'] # the first beam has highest cumulative score
@@ -198,7 +199,8 @@ class AttModel(CaptionModel):
                 sampleLogprobs = logprobs.gather(1, it) # gather the logprobs at sampled positions
                 it = it.view(-1).long() # and flatten indices for downstream processing
 
-            xt = self.embed(Variable(it, requires_grad=False))
+            # xt = self.embed(Variable(it, requires_grad=False))
+            xt = self.embed(it)
 
             if t >= 1:
                 # stop when all finished
@@ -214,7 +216,8 @@ class AttModel(CaptionModel):
                 seqLogprobs.append(sampleLogprobs.view(-1))
 
             output, state = self.core(xt, fc_feats, att_feats, p_att_feats, state)
-            logprobs = F.log_softmax(self.logit(output))
+            # logprobs = F.log_softmax(self.logit(output))
+            logprobs = F.log_softmax(self.logit(output), dim=1)
 
         return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1)
 
@@ -355,7 +358,7 @@ class AdaAtt_attention(nn.Module):
         hA = F.dropout(hA,self.drop_prob_lm, self.training)
         
         hAflat = self.alpha_net(hA.view(-1, self.att_hid_size))
-        #PI = F.softmax(hAflat.view(-1, att_size + 1))
+        # PI = F.softmax(hAflat.view(-1, att_size + 1))
         PI = F.softmax(hAflat.view(-1, att_size + 1), dim=1)
 
         visAtt = torch.bmm(PI.unsqueeze(1), img_all)

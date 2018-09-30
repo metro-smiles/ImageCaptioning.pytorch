@@ -74,10 +74,10 @@ class FCModel(CaptionModel):
         # weight = next(self.parameters()).data
         weight = next(self.parameters())
         if self.rnn_type == 'lstm':
-            return (weight.new_zeros(self.num_layers, bsz, self.rnn_size),
-                    weight.new_zeros(self.num_layers, bsz, self.rnn_size))
             # return (Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()),
             #        Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_()))
+            return (weight.new_zeros(self.num_layers, bsz, self.rnn_size),
+                    weight.new_zeros(self.num_layers, bsz, self.rnn_size))
         else:
             # return Variable(weight.new(self.num_layers, bsz, self.rnn_size).zero_())
             return weight.new_zeros(self.num_layers, bsz, self.rnn_size)
@@ -98,7 +98,8 @@ class FCModel(CaptionModel):
                         it = seq[:, i-1].clone()
                     else:
                         sample_ind = sample_mask.nonzero().view(-1)
-                        it = seq[:, i-1].data.clone()
+                        # it = seq[:, i-1].data.clone()
+                        it = seq[:, i-1].clone()
                         #prob_prev = torch.exp(outputs[-1].data.index_select(0, sample_ind)) # fetch prev distribution: shape Nx(M+1)
                         #it.index_copy_(0, sample_ind, torch.multinomial(prob_prev, 1).view(-1))
                         prob_prev = torch.exp(outputs[-1].data) # fetch prev distribution: shape Nx(M+1)
@@ -121,7 +122,6 @@ class FCModel(CaptionModel):
 
     def get_logprobs_state(self, it, state):
         # 'it' is Variable contraining a word index
-        # 'it' is contains a word index
         xt = self.embed(it)
 
         output, state = self.core(xt, state)

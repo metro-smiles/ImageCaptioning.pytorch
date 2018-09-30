@@ -13,13 +13,13 @@ Output: a json file and an hdf5 file
 The hdf5 file contains several fields:
 /images is (N,3,256,256) uint8 array of raw image data in RGB format
 /labels is (M,max_length) uint32 array of encoded labels, zero padded
-/label_start_ix and /label_end_ix are (N,) uint32 arrays of pointers to the
+/label_start_ix and /label_end_ix are (N,) uint32 arrays of pointers to the 
   first and last indices (in range 1..M) of labels for each image
 /label_length stores the length of the sequence for each of the M sequences
 
 The json file has a dict that contains:
 - an 'ix_to_word' field storing the vocab in form {ix:'word'}, where ix is 1-indexed
-- an 'images' field that is a list holding auxiliary information for each image,
+- an 'images' field that is a list holding auxiliary information for each image, 
   such as in particular the 'split' it was assigned to.
 """
 
@@ -80,18 +80,20 @@ def main(params):
 
       I = I.astype('float32')/255.0
       I = torch.from_numpy(I.transpose([2,0,1])).cuda()
-      I = preprocess(I)
       with torch.no_grad():
+          I = Variable(preprocess(I))
           tmp_fc, tmp_att = my_resnet(I, params['att_size'])
+
       # write to hdf5
+      d_set_fc = file_fc.create_dataset(
+          str(img['cocoid']), 
+          (2048,), dtype="float")
+      d_set_att = file_att.create_dataset(
+          str(img['cocoid']), 
+          (params['att_size'], params['att_size'], 2048), dtype="float")
 
-      d_set_fc = file_fc.create_dataset(str(img['cocoid']),
-        (2048,), dtype="float")
-      d_set_att = file_att.create_dataset(str(img['cocoid']),
-        (params['att_size'], params['att_size'], 2048), dtype="float")
-
-      d_set_fc[...] = tmp_fc.data.cpu().float().numpy()
-      d_set_att[...] = tmp_att.data.cpu().float().numpy()
+      d_set_fc[...] = tmp_fc.cpu().float().numpy()
+      d_set_att[...] = tmp_att.cpu().float().numpy()
       if i % 1000 == 0:
         print('processing %d/%d (%.2f%% done)' % (i, N, i*100.0 / N))
     file_fc.close()
